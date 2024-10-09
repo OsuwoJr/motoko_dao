@@ -1,0 +1,26 @@
+{
+  "canisters": {
+    "DAO_backend": {
+      "main": "src/DAO_backend/main.mo",
+      "type": "motoko"
+    },
+    "DAO_frontend": {
+      "dependencies": [
+        "DAO_backend"
+      ],
+      "source": [
+        "src/DAO_frontend/dist"
+      ],
+      "type": "assets",
+      "workspace": "DAO_frontend"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}
