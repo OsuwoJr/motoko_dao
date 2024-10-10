@@ -7,7 +7,17 @@ import Principal "mo:base/Principal";
 
 module {
   public type Result<T, E> = Result.Result<T, E>;
-  public type Account = { owner : Principal; tokens : Tokens };
+  public type Badge = {
+   title: Text;
+   description: Text;
+ };
+
+  public type Account = { 
+    owner : Principal;
+    tokens: Tokens;
+    staked_tokens: Tokens;
+    badges: [Badge];  
+  };
   public type Proposal = {
     id : Nat;
     votes_no : Tokens;
@@ -66,13 +76,19 @@ module {
 
   public func proposal_key(t: Nat) : Trie.Key<Nat> = { key = t; hash = Int.hash t };
   public func account_key(t: Principal) : Trie.Key<Principal> = { key = t; hash = Principal.hash t };
-  public func accounts_fromArray(arr: [Account]) : Trie.Trie<Principal, Tokens> {
-      var s = Trie.empty<Principal, Tokens>();
-      for (account in arr.vals()) {
-          s := Trie.put(s, account_key(account.owner), Principal.equal, account.tokens).0;
-      };
-      s
-  };
+  public func accounts_fromArray(arr: [Account]) : Trie.Trie<Principal, Account> {
+    var s = Trie.empty<Principal, Account>();
+    for (account in arr.vals()) {
+        s := Trie.put(s, account_key(account.owner), Principal.equal, {
+            owner = account.owner;
+            tokens = account.tokens;              
+            staked_tokens = { amount_e8s = 0 };   
+            badges = [];                
+        }).0;
+    };
+    s
+}
+
   public func proposals_fromArray(arr: [Proposal]) : Trie.Trie<Nat, Proposal> {
       var s = Trie.empty<Nat, Proposal>();
       for (proposal in arr.vals()) {

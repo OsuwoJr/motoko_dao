@@ -21,8 +21,8 @@ const StakingModal = ({ isOpen, onClose }) => {
           onChange={(e) => setAmount(e.target.value)}
           placeholder="Enter amount to stake"
         />
-        <button onClick={handleStake}>Stake</button>
-        <button onClick={onClose}>Cancel</button>
+        <button className="primary-btn" onClick={handleStake}>Stake</button>
+        <button className="secondary-btn" onClick={onClose}>Cancel</button>
       </div>
     </div>
   );

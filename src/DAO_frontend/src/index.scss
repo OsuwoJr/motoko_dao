@@ -52,6 +52,12 @@ input, select {
   margin: 0 auto;
   padding: 20px;
 }
+.homebar{
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: 15px ;
+}
 
 /* Navbar */
 .navbar {
@@ -91,7 +97,7 @@ input, select {
 
 /* Button */
 .primary-btn {
-  background-color: #2ecc71;
+  background-color: #34495e;
   padding: 12px 24px;
   color: white;
   font-size: 16px;
@@ -100,7 +106,7 @@ input, select {
 }
 
 .primary-btn:hover {
-  background-color: #27ae60;
+  background-color: #2f4154c5;
 }
 
 .secondary-btn {

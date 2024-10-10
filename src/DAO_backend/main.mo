@@ -10,7 +10,7 @@ import List "mo:base/List";
 import Time "mo:base/Time";
 import Types "./Types";
 
-shared actor class DAO(init : Types.BasicDaoStableStorage) = Self {
+shared actor class DAO(init : Types.BasicDaoStableStorage) = {
     stable var accounts = Types.accounts_fromArray(init.accounts);
     stable var proposals = Types.proposals_fromArray(init.proposals);
     stable var next_proposal_id : Nat = 0;
@@ -20,53 +20,93 @@ shared actor class DAO(init : Types.BasicDaoStableStorage) = Self {
         await execute_accepted_proposals();
     };
 
-    func account_get(id : Principal) : ?Types.Tokens = Trie.get(accounts, Types.account_key(id), Principal.equal);
-    func account_put(id : Principal, tokens : Types.Tokens) {
-        accounts := Trie.put(accounts, Types.account_key(id), Principal.equal, tokens).0;
+    func account_get(id : Principal) : ?Types.Account = Trie.get(accounts, Types.account_key(id), Principal.equal);
+    func account_put(id : Principal, account : Types.Account) {
+        accounts := Trie.put(accounts, Types.account_key(id), Principal.equal, account).0;
     };
     func proposal_get(id : Nat) : ?Types.Proposal = Trie.get(proposals, Types.proposal_key(id), Nat.equal);
     func proposal_put(id : Nat, proposal : Types.Proposal) {
         proposals := Trie.put(proposals, Types.proposal_key(id), Nat.equal, proposal).0;
     };
 
+    /// Query user account details (balance, staked tokens, badges)
+    public query func get_account() : async ?Types.Account {
+        Trie.get(accounts, Types.account_key(Principal.fromActor(this)), Principal.equal)
+    };
+
+    /// Stake tokens
+    public shared({caller}) func stake_tokens(amount: Nat) : async Types.Result<(), Text> {
+        switch (account_get(caller)) {
+        case null { return #err("Account not found") };
+        case (?account) {
+            if (account.tokens.amount_e8s < amount) {
+                return #err("Insufficient tokens for staking");
+            };
+            let updated_account = {
+                owner = account.owner;
+                tokens = { amount_e8s = account.tokens.amount_e8s - amount };  // Deduct from available tokens
+                staked_tokens = { amount_e8s = account.staked_tokens.amount_e8s + amount };  // Add to staked tokens
+                badges = account.badges;
+            };
+            account_put(caller, updated_account);
+            return #ok;
+        };
+      };
+    };
 
     /// Transfer tokens from the caller's account to another account
     public shared({caller}) func transfer(transfer: Types.TransferArgs) : async Types.Result<(), Text> {
-        switch (account_get caller) {
-        case null { #err "Caller needs an account to transfer funds" };
+        switch (account_get(caller)) {
+        case null { return #err("Caller needs an account to transfer funds") };
         case (?from_tokens) {
-                 let fee = system_params.transfer_fee.amount_e8s;
-                 let amount = transfer.amount.amount_e8s;
-                 if (from_tokens.amount_e8s < amount + fee) {
-                     #err ("Caller's account has insufficient funds to transfer " # debug_show(amount));
-                 } else {
-                     let from_amount : Nat = from_tokens.amount_e8s - amount - fee;
-                     account_put(caller, { amount_e8s = from_amount });
-                     let to_amount = Option.get(account_get(transfer.to), Types.zeroToken).amount_e8s + amount;
-                     account_put(transfer.to, { amount_e8s = to_amount });
-                     #ok;
-                 };
+            let fee = system_params.transfer_fee.amount_e8s;
+            let amount = transfer.amount.amount_e8s;
+            if (from_tokens.tokens.amount_e8s < amount + fee) {
+                return #err("Caller's account has insufficient funds to transfer " # debug_show(amount));
+            } else {
+                let from_amount : Nat = from_tokens.tokens.amount_e8s - amount - fee;
+                let updated_from_tokens = { amount_e8s = from_amount };
+                let updated_from_account = {
+                    owner = from_tokens.owner;
+                    tokens = updated_from_tokens;
+                    staked_tokens = from_tokens.staked_tokens;
+                    badges = from_tokens.badges;
+                };
+                account_put(caller, updated_from_account);
+                
+                let to_account = Option.get(account_get(transfer.to), {
+                    owner = transfer.to;
+                    tokens = Types.zeroToken;
+                    staked_tokens = { amount_e8s = 0 };
+                    badges = [];
+                });
+                let to_amount = to_account.tokens.amount_e8s + amount;
+                let updated_to_account = {
+                    owner = to_account.owner;
+                    tokens = { amount_e8s = to_amount };
+                    staked_tokens = to_account.staked_tokens;
+                    badges = to_account.badges;
+                };
+                account_put(transfer.to, updated_to_account);
+                return #ok;
+            };
         };
       };
     };
 
     /// Return the account balance of the caller
-    public query({caller}) func account_balance() : async Types.Tokens {
-        Option.get(account_get(caller), Types.zeroToken)
+    public query func account_balance() : async Types.Tokens {
+        Option.get(account_get(Principal.fromActor(this)), Types.zeroToken).tokens
     };
 
     /// Lists all accounts
     public query func list_accounts() : async [Types.Account] {
         Iter.toArray(
           Iter.map(Trie.iter(accounts),
-                   func ((owner : Principal, tokens : Types.Tokens)) : Types.Account = { owner; tokens }))
+                   func ((owner : Principal, account : Types.Account)) : Types.Account = account))
     };
 
     /// Submit a proposal
-    ///
-    /// A proposal contains a canister ID, method name and method args. If enough users
-    /// vote "yes" on the proposal, the given method will be called with the given method
-    /// args on the given canister.
     public shared({caller}) func submit_proposal(payload: Types.ProposalPayload) : async Types.Result<Nat, Text> {
         Result.chain(deduct_proposal_submission_deposit(caller), func (()) : Types.Result<Nat, Text> {
             let proposal_id = next_proposal_id;
@@ -83,7 +123,7 @@ shared actor class DAO(init : Types.BasicDaoStableStorage) = Self {
                 voters = List.nil();
             };
             proposal_put(proposal_id, proposal);
-            #ok(proposal_id)
+            return #ok(proposal_id);
         })
     };
 
@@ -100,56 +140,60 @@ shared actor class DAO(init : Types.BasicDaoStableStorage) = Self {
     // Vote on an open proposal
     public shared({caller}) func vote(args: Types.VoteArgs) : async Types.Result<Types.ProposalState, Text> {
         switch (proposal_get(args.proposal_id)) {
-        case null { #err("No proposal with ID " # debug_show(args.proposal_id) # " exists") };
+        case null { return #err("No proposal with ID " # debug_show(args.proposal_id) # " exists") };
         case (?proposal) {
-                 var state = proposal.state;
-                 if (state != #open) {
-                     return #err("Proposal " # debug_show(args.proposal_id) # " is not open for voting");
-                 };
-                 switch (account_get(caller)) {
-                 case null { return #err("Caller does not have any tokens to vote with") };
-                 case (?{ amount_e8s = voting_tokens }) {
-                          if (List.some(proposal.voters, func (e : Principal) : Bool = e == caller)) {
-                              return #err("Already voted");
-                          };
-                          
-                          var votes_yes = proposal.votes_yes.amount_e8s;
-                          var votes_no = proposal.votes_no.amount_e8s;
-                          switch (args.vote) {
-                          case (#yes) { votes_yes += voting_tokens };
-                          case (#no) { votes_no += voting_tokens };
-                          };
-                          let voters = List.push(caller, proposal.voters);
+            var state = proposal.state;
+            if (state != #open) {
+                return #err("Proposal " # debug_show(args.proposal_id) # " is not open for voting");
+            };
+            switch (account_get(caller)) {
+            case null { return #err("Caller does not have any tokens to vote with") };
+            case (?{ tokens = { amount_e8s = voting_tokens }; staked_tokens; badges; owner }) {
+                if (List.some(proposal.voters, func (e : Principal) : Bool = e == caller)) {
+                    return #err("Already voted");
+                };
+                
+                var votes_yes = proposal.votes_yes.amount_e8s;
+                var votes_no = proposal.votes_no.amount_e8s;
+                switch (args.vote) {
+                case (#yes) { votes_yes += voting_tokens };
+                case (#no) { votes_no += voting_tokens };
+                };
+                let voters = List.push(caller, proposal.voters);
 
-                          if (votes_yes >= system_params.proposal_vote_threshold.amount_e8s) {
-                              // Refund the proposal deposit when the proposal is accepted
-                              ignore do ? {
-                                  let account = account_get(proposal.proposer)!;
-                                  let refunded = account.amount_e8s + system_params.proposal_submission_deposit.amount_e8s;
-                                  account_put(proposal.proposer, { amount_e8s = refunded });
-                              };
-                              state := #accepted;
-                          };
-                          
-                          if (votes_no >= system_params.proposal_vote_threshold.amount_e8s) {
-                              state := #rejected;
-                          };
+                if (votes_yes >= system_params.proposal_vote_threshold.amount_e8s) {
+                    // Refund the proposal deposit when the proposal is accepted
+                    ignore {
+                        let account = Option.get(account_get(proposal.proposer))!;
+                        let refunded = account.tokens.amount_e8s + system_params.proposal_submission_deposit.amount_e8s;
+                        account_put(proposal.proposer, { 
+                            owner = account.owner; 
+                            tokens = { amount_e8s = refunded }; 
+                            staked_tokens = account.staked_tokens; 
+                            badges = account.badges;
+                        });
+                    };
+                    state := #accepted;
+                };
+                
+                if (votes_no >= system_params.proposal_vote_threshold.amount_e8s) {
+                    state := #rejected;
+                };
 
-                          let updated_proposal = {
-                              id = proposal.id;
-                              votes_yes = { amount_e8s = votes_yes };                              
-                              votes_no = { amount_e8s = votes_no };
-                              voters;
-                              state;
-                              timestamp = proposal.timestamp;
-                              proposer = proposal.proposer;
-                              payload = proposal.payload;
-                          };
-                          proposal_put(args.proposal_id, updated_proposal);
-                      };
-                 };
-                 #ok(state)
-             };
+                let updated_proposal = {
+                    id = proposal.id;
+                    votes_yes = { amount_e8s = votes_yes };                              
+                    votes_no = { amount_e8s = votes_no };
+                    voters = voters;
+                    state = state;
+                    timestamp = proposal.timestamp;
+                    proposer = proposal.proposer;
+                    payload = proposal.payload;
+                };
+                proposal_put(args.proposal_id, updated_proposal);
+            };
+          };
+          return #ok(state);
         };
     };
 
@@ -157,10 +201,9 @@ shared actor class DAO(init : Types.BasicDaoStableStorage) = Self {
     public query func get_system_params() : async Types.SystemParams { system_params };
 
     /// Update system params
-    ///
     /// Only callable via proposal execution
     public shared({caller}) func update_system_params(payload: Types.UpdateSystemParamsPayload) : async () {
-        if (caller != Principal.fromActor(Self)) {
+        if (caller != Principal.fromActor(this)) {
             return;
         };
         system_params := {
@@ -170,35 +213,39 @@ shared actor class DAO(init : Types.BasicDaoStableStorage) = Self {
         };
     };
 
-    /// Deduct the proposal submission deposit from the caller's account
-    func deduct_proposal_submission_deposit(caller : Principal) : Types.Result<(), Text> {
+    /// Deduct the proposal submission deposit
+    func deduct_proposal_submission_deposit(caller: Principal) : Types.Result<(), Text> {
         switch (account_get(caller)) {
-        case null { #err "Caller needs an account to submit a proposal" };
+        case null { #err("Caller needs an account to submit a proposal") };
         case (?from_tokens) {
-                 let threshold = system_params.proposal_submission_deposit.amount_e8s;
-                 if (from_tokens.amount_e8s < threshold) {
-                     #err ("Caller's account must have at least " # debug_show(threshold) # " to submit a proposal")
-                 } else {
-                     let from_amount : Nat = from_tokens.amount_e8s - threshold;
-                     account_put(caller, { amount_e8s = from_amount });
-                     #ok
-                 };
-             };
+            let threshold = system_params.proposal_submission_deposit.amount_e8s;
+            if (from_tokens.tokens.amount_e8s < threshold) {
+                #err ("Caller's account must have at least " # debug_show(threshold) # " to submit a proposal");
+            } else {
+                let from_amount : Nat = from_tokens.tokens.amount_e8s - threshold;
+                account_put(caller, {
+                    owner = from_tokens.owner;
+                    tokens = { amount_e8s = from_amount };
+                    staked_tokens = from_tokens.staked_tokens;
+                    badges = from_tokens.badges;
+                });
+                #ok;
+            };
         };
+      };
     };
 
     /// Execute all accepted proposals
     func execute_accepted_proposals() : async () {
         let accepted_proposals = Trie.filter(proposals, func (_ : Nat, proposal : Types.Proposal) : Bool = proposal.state == #accepted);
-        // Update proposal state, so that it won't be picked up by the next heartbeat
         for ((id, proposal) in Trie.iter(accepted_proposals)) {
             update_proposal_state(proposal, #executing);
         };
 
         for ((id, proposal) in Trie.iter(accepted_proposals)) {
             switch (await execute_proposal(proposal)) {
-            case (#ok) { update_proposal_state(proposal, #succeeded); };
-            case (#err(err)) { update_proposal_state(proposal, #failed(err)); };
+            case (#ok) { update_proposal_state(proposal, #succeeded) };
+            case (#err(err)) { update_proposal_state(proposal, #failed(err)) };
             };
         };
     };
@@ -208,9 +255,8 @@ shared actor class DAO(init : Types.BasicDaoStableStorage) = Self {
         try {
             let payload = proposal.payload;
             ignore await ICRaw.call(payload.canister_id, payload.method, payload.message);
-            #ok
-        }
-        catch (e) { #err(Error.message e) };
+            #ok;
+        } catch (e) { #err(Error.message e) };
     };
 
     func update_proposal_state(proposal: Types.Proposal, state: Types.ProposalState) {

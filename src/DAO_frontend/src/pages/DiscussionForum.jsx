@@ -1,4 +1,4 @@
-// DiscussionForum.jsx
+
 import React from "react";
 
 const DiscussionForum = ({ proposalId }) => {
