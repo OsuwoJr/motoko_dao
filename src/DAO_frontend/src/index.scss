@@ -1,37 +1,246 @@
+/* General Reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Global styles */
 body {
-  font-family: sans-serif;
-  font-size: 1.5rem;
+  font-family: 'Roboto', sans-serif;
+  background-color: #f9f9f9;
+  color: #333;
 }
 
-img {
-  max-width: 50vw;
-  max-height: 25vw;
-  display: block;
-  margin: auto;
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Poppins', sans-serif;
+  color: #2c3e50;
 }
 
-form {
+a {
+  text-decoration: none;
+  color: #3498db;
+}
+
+
+button {
+  background-color: #3498db;
+  border: none;
+  color: white;
+  padding: 10px 20px;
+  cursor: pointer;
+  border-radius: 5px;
+  transition: background-color 0.3s;
+}
+
+button:hover {
+  background-color: #2980b9;
+}
+
+input, select {
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  width: 100%;
+  margin-bottom: 20px;
+}
+
+/* Layout Styling */
+.container {
+  width: 90%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+/* Navbar */
+.navbar {
   display: flex;
-  justify-content: center;
-  gap: 0.5em;
-  flex-flow: row wrap;
-  max-width: 40vw;
-  margin: auto;
-  align-items: baseline;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 0;
+  background-color: #2c3e50;
+  color: white;
 }
 
-button[type="submit"] {
-  padding: 5px 20px;
-  margin: 10px auto;
-  float: right;
+.navbar h1 {
+  font-size: 24px;
+  font-weight: 700;
 }
 
-#greeting {
-  margin: 10px auto;
-  padding: 10px 60px;
-  border: 1px solid #222;
+.nav-links {
+  list-style: none;
+  display: flex;
+  gap: 20px;
 }
 
-#greeting:empty {
-  display: none;
+.nav-links li {
+  font-size: 16px;
+}
+
+.nav-links a {
+  text-decoration: none;
+  color: white;
+  padding: 5px 10px;
+}
+
+.nav-links a:hover {
+  background-color: #34495e;
+  border-radius: 3px;
+}
+
+/* Button */
+.primary-btn {
+  background-color: #2ecc71;
+  padding: 12px 24px;
+  color: white;
+  font-size: 16px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.primary-btn:hover {
+  background-color: #27ae60;
+}
+
+.secondary-btn {
+  background-color: #e74c3c;
+  padding: 12px 24px;
+  color: white;
+  font-size: 16px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.secondary-btn:hover {
+  background-color: #c0392b;
+}
+
+/* Home Page */
+.home {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 60px 20px;
+}
+
+.home h1 {
+  font-size: 48px;
+  color: #34495e;
+  margin-bottom: 20px;
+}
+
+.home p {
+  font-size: 20px;
+  color: #7f8c8d;
+  max-width: 600px;
+  margin-bottom: 40px;
+}
+
+/* Proposal Page */
+.proposal {
+  padding: 40px 20px;
+  background-color: #ecf0f1;
+}
+
+.proposal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.proposal-item {
+  background-color: white;
+  padding: 20px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+}
+
+.proposal-item h3 {
+  font-size: 22px;
+  color: #2980b9;
+  margin-bottom: 10px;
+}
+
+.proposal-item p {
+  font-size: 16px;
+  color: #7f8c8d;
+}
+
+/* Vote buttons */
+.vote-btns {
+  display: flex;
+  gap: 10px;
+}
+
+.vote-btns .yes-btn {
+  background-color: #2ecc71;
+  padding: 10px 20px;
+}
+
+.vote-btns .no-btn {
+  background-color: #e74c3c;
+  padding: 10px 20px;
+}
+
+/* Transfer Page */
+.transfer {
+  padding: 40px 20px;
+}
+
+.transfer-form {
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.transfer-form input {
+  margin-bottom: 15px;
+}
+
+.transfer-form button {
+  background-color: #3498db;
+  color: white;
+  padding: 12px;
+  width: 100%;
+  border-radius: 5px;
+}
+
+.transfer-form button:hover {
+  background-color: #2980b9;
+}
+
+/*modals*/
+
+.modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: white;
+  padding: 30px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  z-index: 1000;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+}
+
+/* Footer */
+.footer {
+  text-align: center;
+  padding: 20px;
+  background-color: #2c3e50;
+  color: white;
+  position: absolute;
+  bottom: 0;
+  width: 100%;
 }

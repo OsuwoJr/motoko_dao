@@ -1,31 +1,27 @@
-import { useState } from 'react';
-import { DAO_backend } from 'declarations/DAO_backend';
+import React from "react";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import Navbar from "./components/Navbar";
+import Home from "./pages/Home";
+import Proposals from "./pages/Proposals";
+import Account from "./pages/Account";
+import DiscussionForum from "./pages/DiscussionForum";
+import Leaderboard from "./pages/Leaderboard";
 
-function App() {
-  const [greeting, setGreeting] = useState('');
-
-  function handleSubmit(event) {
-    event.preventDefault();
-    const name = event.target.elements.name.value;
-    DAO_backend.greet(name).then((greeting) => {
-      setGreeting(greeting);
-    });
-    return false;
-  }
-
+const App = () => {
   return (
-    <main>
-      <img src="/logo2.svg" alt="DFINITY logo" />
-      <br />
-      <br />
-      <form action="#" onSubmit={handleSubmit}>
-        <label htmlFor="name">Enter your name: &nbsp;</label>
-        <input id="name" alt="Name" type="text" />
-        <button type="submit">Click Me!</button>
-      </form>
-      <section id="greeting">{greeting}</section>
-    </main>
+    <Router>
+      <Navbar />
+      <div className="container">
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/proposals" element={<Proposals />} />
+          <Route path="/account" element={<Account />} />
+          <Route path="/discussion/:id" element={<DiscussionForum />} />
+          <Route path="/leaderboard" element={<Leaderboard />} />
+        </Routes>
+      </div>
+    </Router>
   );
-}
+};
 
 export default App;
